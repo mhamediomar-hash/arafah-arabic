@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronDown, ChevronUp, X, Plus, Save, RotateCcw, Sparkles, Clock, Moon, Sun, Layers, ArrowUp, GripVertical, Check } from 'lucide-react'
 import './index.css'
 
@@ -204,6 +204,22 @@ function App() {
 
   const [calendarInputs, setCalendarInputs] = useState<Record<string, string>>({})
 
+  const [calendarItemTimes, setCalendarItemTimes] = useState<Record<string, Record<number, string>>>(() => {
+    const saved = localStorage.getItem('arafah-calendar-times-ar')
+    return saved ? JSON.parse(saved) : {}
+  })
+
+  useEffect(() => {
+    localStorage.setItem('arafah-calendar-times-ar', JSON.stringify(calendarItemTimes))
+  }, [calendarItemTimes])
+
+  const setItemTime = (stageId: string, idx: number, time: string) => {
+    setCalendarItemTimes(prev => ({
+      ...prev,
+      [stageId]: { ...(prev[stageId] || {}), [idx]: time }
+    }))
+  }
+
   useEffect(() => {
     localStorage.setItem('arafah-calendar-ar', JSON.stringify(calendarItems))
   }, [calendarItems])
@@ -256,6 +272,33 @@ function App() {
 
   const getCheckedCount = (stage: StageData) => {
     return stage.items.filter((_, i) => checked[`${stage.id}-${i}`]).length
+  }
+
+
+  // Save section as image
+  const duaRef = useRef<HTMLElement>(null)
+  const timetableRef = useRef<HTMLElement>(null)
+  const calendarRef = useRef<HTMLElement>(null)
+
+  const saveAsImage = async (ref: React.RefObject<HTMLElement | null>, filename: string) => {
+    if (!ref.current) return
+    const html2canvas = await new Promise<any>((resolve, reject) => {
+      if ((window as any).html2canvas) { resolve((window as any).html2canvas); return; }
+      const script = document.createElement('script')
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
+      script.onload = () => resolve((window as any).html2canvas)
+      script.onerror = reject
+      document.head.appendChild(script)
+    })
+    const canvas = await html2canvas(ref.current, {
+      useCORS: true,
+      scale: 2,
+      backgroundColor: '#ffffff',
+    })
+    const link = document.createElement('a')
+    link.download = filename
+    link.href = canvas.toDataURL('image/png')
+    link.click()
   }
 
   return (
@@ -391,7 +434,7 @@ function App() {
       </div>
 
       {/* ===== Dua Section ===== */}
-      <section className="section" id="dua">
+      <section className="section" id="dua" ref={duaRef as React.RefObject<HTMLDivElement>}>
         <p className="section-label">طريقة للسؤال</p>
         <h2 className="section-title">اكتب دعاءك</h2>
         <p className="section-subtitle">ابدأ بالثناء على الله بأسمائه الحسنى، ثم اسأله ما يشتهي قلبك:</p>
@@ -434,7 +477,7 @@ function App() {
           </ul>
         )}
 
-        <button className="save-btn" onClick={() => alert('سيتم حفظ القائمة كصورة قريباً إن شاء الله')}>
+        <button className="save-btn" onClick={() => saveAsImage(duaRef, 'قائمة-أدعيتي.png')}>
           <Save size={16} /> حفظ القائمة كصورة
         </button>
       </section>
@@ -462,12 +505,12 @@ function App() {
       <p className="italic-quote">أنت تعرف ثقل هذا اليوم. إليك كيف تستقبله، ساعة بساعة.</p>
 
       {/* ===== Timetable ===== */}
-      <section className="section" id="plan">
+      <section className="section" id="plan" ref={timetableRef as React.RefObject<HTMLDivElement>}>
         <p className="section-label">الخطة</p>
         <h2 className="section-title">جدول مقترح</h2>
         <p className="section-subtitle">هذا جدول مقترح، اطّلع عليه، وانظر ما تستطيع فعله، ثم ابنِ جدولك الخاص أدناه.</p>
 
-        <button className="save-btn" style={{ marginBottom: 32 }} onClick={() => alert('سيتم حفظ الجدول كصورة قريباً إن شاء الله')}>
+        <button className="save-btn" style={{ marginBottom: 32 }} onClick={() => saveAsImage(timetableRef, 'جدول-يوم-عرفة.png')}>
           <Save size={16} /> حفظ الجدول كصورة
         </button>
 
@@ -521,13 +564,13 @@ function App() {
       <p className="italic-quote">هذا هو الطريق الذي نقترحه. الآن شكّله بما يناسبك.</p>
 
       {/* ===== Calendar Builder ===== */}
-      <section className="section" id="builder">
+      <section className="section" id="builder" ref={calendarRef as React.RefObject<HTMLDivElement>}>
         <p className="section-label">اجعله خاصاً بك</p>
         <h2 className="section-title">ابنِ جدولك</h2>
         <p className="section-subtitle">ابدأ من الخطة المقترحة، ثم عدّلها لتناسب يومك. أضف أنشطة، أعد الترتيب، وأضف نيّاتك.</p>
 
         <div className="buttons-row">
-          <button className="btn-outline" onClick={() => alert('سيتم حفظها كصورة قريباً إن شاء الله')}>
+          <button className="btn-outline" onClick={() => saveAsImage(calendarRef, 'جدولي-الخاص.png')}>
             <Save size={16} /> حفظ كصورة
           </button>
           <button className="btn-outline" onClick={resetCalendar}>
@@ -574,7 +617,13 @@ function App() {
                       {items.map((item, i) => (
                         <div key={i} className="cal-stage-item">
                           <span className="cal-item-drag"><GripVertical size={14} /></span>
-                          <span className="cal-item-time">الوقت</span>
+                          <input
+                            type="time"
+                            className="cal-item-time"
+                            value={calendarItemTimes[stage.id]?.[i] || ''}
+                            onChange={(e) => setItemTime(stage.id, i, e.target.value)}
+                            title="اضغط لتحديد الوقت"
+                          />
                           <span className="cal-item-text">{item}</span>
                           <span className="cal-item-badge">مقترح</span>
                           <div className="cal-item-actions">
